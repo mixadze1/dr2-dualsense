@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo build
+      - run: cargo test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dr2-dualsense
+          path: |
+            target/release/xinput9_1_0.dll
+            target/release/dr2ds-sim.exe
+            target/release/dr2ds-harness.exe
+            scripts/install.ps1
+            scripts/uninstall.ps1
