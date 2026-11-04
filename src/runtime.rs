@@ -74,7 +74,7 @@ fn load_config() -> (Config, Option<SystemTime>) {
 fn start() -> Arc<Shared> {
     let (cfg, mtime) = load_config();
     log::init(Some(module_dir().join("dr2_dualsense.log")), cfg.log);
-    log::write(&format!("config loaded from {}", config_path().display()));
+    log::write(&format!("config loaded from {}: preset {:?}, trigger power {:.0}%, vibration power {:.0}%", config_path().display(), cfg.preset, cfg.trigger_power * 100.0, cfg.vibration_power * 100.0));
     let shared = Arc::new(Shared {
         pad: Mutex::new(PadSnapshot::default()),
         rumble: AtomicU32::new(0),
@@ -210,6 +210,7 @@ fn device_loop(shared: &Shared, mut cfg: Config, mut cfg_mtime: Option<SystemTim
     let mut feedback: Option<Feedback> = None;
     let mut last_stats = Instant::now();
     let clock0 = Instant::now();
+    let mut last_mode = (false, false);
 
     loop {
         if last_cfg_check.elapsed() > Duration::from_secs(1) {
@@ -304,6 +305,15 @@ fn device_loop(shared: &Shared, mut cfg: Config, mut cfg_mtime: Option<SystemTim
                 clock: now.duration_since(clock0).as_secs_f32(),
             };
             let mut out = engine.update(&inputs);
+            let mode = (engine.diag.active, engine.diag.paused);
+            if mode != last_mode {
+                log::write(match mode {
+                    (true, _) => "driving: effects on",
+                    (false, true) => "game paused: triggers released, vibration off",
+                    (false, false) => "no live telemetry (menu or replay): triggers released",
+                });
+                last_mode = mode;
+            }
             if let Some(f) = &feedback {
                 if now < f.until {
                     if f.leds.is_some() {
@@ -339,13 +349,14 @@ fn device_loop(shared: &Shared, mut cfg: Config, mut cfg_mtime: Option<SystemTim
         if last_stats.elapsed() > Duration::from_secs(10) {
             last_stats = Instant::now();
             log::write(&format!(
-                "stats: input {} output {} telemetry {} | brake {:?} throttle {:?} active {}",
+                "stats: input {} output {} telemetry {} | brake {:?} throttle {:?} active {} paused {}",
                 shared.input_reports.load(Ordering::Relaxed),
                 shared.output_reports.load(Ordering::Relaxed),
                 shared.telemetry_packets.load(Ordering::Relaxed),
                 engine.diag.brake,
                 engine.diag.throttle,
-                engine.diag.active
+                engine.diag.active,
+                engine.diag.paused
             ));
         }
     }

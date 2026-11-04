@@ -43,6 +43,12 @@ $target = Join-Path $GameDir "xinput9_1_0.dll"
 Copy-Item $DllPath $target -Force
 Write-Host "Installed $target"
 
+$ini = Join-Path $GameDir "dr2_dualsense.ini"
+if ((Test-Path $ini) -and -not (Select-String -Path $ini -Pattern '^\s*preset\s*=' -Quiet)) {
+    Move-Item $ini "$ini.v1-backup" -Force
+    Write-Host "Old v0.1 config moved to $ini.v1-backup; a new one with presets is created on next game start"
+}
+
 if (-not $NoTelemetryPatch) {
     $xml = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "My Games\DiRT Rally 2.0\hardwaresettings\hardware_settings_config.xml"
     if (-not (Test-Path $xml)) {

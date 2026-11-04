@@ -7,6 +7,7 @@ struct Phase {
     name: &'static str,
     seconds: f32,
     make: fn(f32, f32) -> Telemetry,
+    frozen: bool,
 }
 
 fn base(speed: f32, rpm: f32, gear: f32) -> Telemetry {
@@ -24,7 +25,7 @@ fn base(speed: f32, rpm: f32, gear: f32) -> Telemetry {
 
 fn phases() -> Vec<Phase> {
     vec![
-        Phase { name: "idle in neutral", seconds: 2.0, make: |_, _| base(0.0, 900.0, 0.0) },
+        Phase { name: "idle in neutral", seconds: 2.0, make: |_, _| base(0.0, 900.0, 0.0), frozen: false },
         Phase {
             name: "smooth cruise (both triggers resist)",
             seconds: 3.0,
@@ -33,6 +34,7 @@ fn phases() -> Vec<Phase> {
                 t.throttle = 0.4;
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "gravel road texture (right motor)",
@@ -44,6 +46,7 @@ fn phases() -> Vec<Phase> {
                 t.susp_vel = [s, -s * 0.8, s * 0.9, -s];
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "launch with wheelspin (R2 vibrates)",
@@ -55,6 +58,7 @@ fn phases() -> Vec<Phase> {
                 t.wheel_speed = [speed * 2.2, speed * 2.2, speed, speed];
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "rev limiter (R2 pulses, lightbar flashes)",
@@ -64,6 +68,7 @@ fn phases() -> Vec<Phase> {
                 t.throttle = 1.0;
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "upshifts 2-3-4-5 (left motor kicks)",
@@ -74,6 +79,7 @@ fn phases() -> Vec<Phase> {
                 t.throttle = 1.0;
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "hard braking with front lockup (L2 vibrates)",
@@ -85,6 +91,7 @@ fn phases() -> Vec<Phase> {
                 t.wheel_speed = [speed * 0.9, speed * 0.9, speed * 0.2, speed * 0.2];
                 t
             },
+            frozen: false,
         },
         Phase {
             name: "jump and heavy landing (big impact)",
@@ -98,8 +105,20 @@ fn phases() -> Vec<Phase> {
                 }
                 t
             },
+            frozen: false,
         },
-        Phase { name: "stopped", seconds: 2.0, make: |_, _| base(0.0, 900.0, 0.0) },
+        Phase {
+            name: "game paused mid-stage (everything must go quiet)",
+            seconds: 3.0,
+            make: |_, _| {
+                let mut t = base(22.0, 4500.0, 3.0);
+                t.throttle = 0.5;
+                t.susp_vel = [0.3, -0.3, 0.3, -0.3];
+                t
+            },
+            frozen: true,
+        },
+        Phase { name: "stopped", seconds: 2.0, make: |_, _| base(0.0, 900.0, 0.0), frozen: false },
     ]
 }
 
@@ -130,13 +149,18 @@ fn main() {
         for phase in phases() {
             println!("> {}", phase.name);
             let t0 = Instant::now();
+            let frozen_time = start.elapsed().as_secs_f32();
             loop {
                 let elapsed = t0.elapsed().as_secs_f32();
                 if elapsed >= phase.seconds {
                     break;
                 }
                 let mut t = (phase.make)(elapsed / phase.seconds, elapsed);
-                t.time = start.elapsed().as_secs_f32();
+                if !phase.frozen {
+                    t.time = start.elapsed().as_secs_f32();
+                } else {
+                    t.time = frozen_time;
+                }
                 let _ = socket.send_to(&t.to_bytes(), ("127.0.0.1", port));
                 sent += 1;
                 std::thread::sleep(Duration::from_millis(10));
