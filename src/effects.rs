@@ -72,6 +72,7 @@ pub struct Engine {
     last_g: (f32, f32),
     frozen_for: f32,
     motors: (f32, f32),
+    gate: f32,
     pub diag: Diagnostics,
 }
 
@@ -125,6 +126,7 @@ impl Engine {
             last_g: (0.0, 0.0),
             frozen_for: 0.0,
             motors: (0.0, 0.0),
+            gate: 0.0,
             diag: Diagnostics::default(),
         }
     }
@@ -138,6 +140,7 @@ impl Engine {
         self.last_gear = None;
         self.frozen_for = 0.0;
         self.motors = (0.0, 0.0);
+        self.gate = 0.0;
     }
 
     fn brake_resist(&self) -> TriggerEffect {
@@ -289,7 +292,13 @@ impl Engine {
         self.motors.0 = left_target.max(self.motors.0 * release);
         self.motors.1 = right_target.max(self.motors.1 * release);
 
-        let scale = cfg.vibration_power * inp.intensity;
+        let gate_target = if cfg.throttle_gate {
+            cfg.coast_vibration + (1.0 - cfg.coast_vibration) * (t.throttle / 0.25).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        self.gate = if gate_target >= self.gate { gate_target } else { gate_target.max(self.gate * (-dt / 0.1).exp()) };
+        let scale = cfg.vibration_power * inp.intensity * self.gate;
         let lightbar = match (cfg.rpm_lightbar, rpm_frac) {
             (true, Some(f)) => rpm_color(f, inp.clock),
             _ => cfg.color,
@@ -408,7 +417,7 @@ mod tests {
 
     #[test]
     fn front_lockup_vibrates_brake_trigger() {
-        let mut e = Engine::new(full());
+        let mut e = Engine::new(Config { throttle_gate: false, ..full() });
         let mut t = cruising();
         t.brake = 1.0;
         t.throttle = 0.0;
@@ -603,7 +612,7 @@ mod tests {
 
     #[test]
     fn quiet_when_stopped_can_be_disabled() {
-        let mut e = Engine::new(Config { quiet_when_stopped: false, game_rumble: 1.0, ..full() });
+        let mut e = Engine::new(Config { quiet_when_stopped: false, throttle_gate: false, game_rumble: 1.0, ..full() });
         let mut t = cruising();
         t.speed = 0.0;
         t.wheel_speed = [0.0; 4];
@@ -612,6 +621,56 @@ mod tests {
         let mut inp = inputs(&p);
         inp.game_rumble = (65535, 0);
         assert!(e.update(&inp).motor_left > 0);
+    }
+
+    #[test]
+    fn releasing_throttle_fades_body_vibration_out() {
+        let mut e = Engine::new(full());
+        let mut c = Clock(0.0);
+        for i in 0..50 {
+            run(&mut e, &mut c, &rough(i, 20.0), 1);
+        }
+        let on = run(&mut e, &mut c, &rough(50, 20.0), 1).motor_right;
+        assert!(on > 40, "{on}");
+        let mut coasting = Vec::new();
+        for i in 0..60 {
+            let mut r = rough(51 + i, 20.0);
+            r.throttle = 0.0;
+            coasting.push(run(&mut e, &mut c, &r, 1).motor_right);
+        }
+        assert!(coasting[0] > 0, "fade should not cut instantly");
+        assert!(coasting[0] < on);
+        assert_eq!(*coasting.last().unwrap(), 0);
+    }
+
+    #[test]
+    fn coast_vibration_keeps_a_little_off_throttle() {
+        let mut e = Engine::new(Config { coast_vibration: 0.3, ..full() });
+        let mut c = Clock(0.0);
+        let mut last = 0;
+        for i in 0..80 {
+            let mut r = rough(i, 20.0);
+            r.throttle = 0.0;
+            last = run(&mut e, &mut c, &r, 1).motor_right;
+        }
+        assert!(last > 0);
+    }
+
+    #[test]
+    fn partial_throttle_gives_partial_vibration() {
+        let level = |throttle: f32| {
+            let mut e = Engine::new(full());
+            let mut c = Clock(0.0);
+            let mut max = 0;
+            for i in 0..80 {
+                let mut r = rough(i, 20.0);
+                r.throttle = throttle;
+                max = max.max(run(&mut e, &mut c, &r, 1).motor_right);
+            }
+            max
+        };
+        assert!(level(0.1) < level(0.5));
+        assert_eq!(level(0.25), level(1.0));
     }
 
     #[test]

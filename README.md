@@ -1,72 +1,85 @@
 # dr2-dualsense
 
-Мод для **DiRT Rally 2.0** (PC, Steam): адаптивные курки и вибрация DualSense по физике машины.
+Adaptive triggers and haptics for the **DualSense** controller in **DiRT Rally 2.0** (PC, Steam).
 
-Игра DualSense не поддерживает. Мод ставится как `xinput9_1_0.dll` в папку игры: игра сама его загружает, мод читает DualSense напрямую (USB или Bluetooth), отдаёт его игре как Xbox-геймпад, а из телеметрии игры (UDP) строит эффекты.
+DiRT Rally 2.0 does not support the DualSense. This mod is a drop-in `xinput9_1_0.dll` placed in the game folder, which the game loads by itself. The mod:
 
-## Что делает
+- reads the DualSense directly (USB or Bluetooth),
+- presents it to the game as an Xbox controller,
+- drives the triggers and vibration from the game's UDP telemetry.
 
-| | Эффект |
+No game files are modified. Delete the DLL and everything is back to stock.
+
+## Features
+
+| | Effect |
 |---|---|
-| **L2 (тормоз)** | Прогрессивное сопротивление: чем глубже, тем туже. При блокировке передних колёс курок вибрирует как ABS. |
-| **R2 (газ)** | Лёгкое сопротивление. Пробуксовка — вибрация, сила зависит от пробуксовки. Отсечка — частые толчки. |
-| **Вибрация** | Покрытие дороги (гравий, кочки) из скоростей подвески, удары и приземления после прыжков, толчок при переключении передачи, обороты двигателя, проскальзывание, плюс родная вибрация игры. |
-| **Световая полоса** | Шкала оборотов: зелёный → жёлтый → красный, мигает у отсечки. |
+| **L2 (brake)** | Progressive resistance that gets firmer the deeper you press. When the front wheels lock, the trigger pulses like ABS. |
+| **R2 (throttle)** | Firm resistance. It vibrates during wheelspin, with strength following the amount of slip, and pulses at the rev limiter. |
+| **Vibration** | Road texture (gravel, bumps) from suspension velocities, landings and impacts, gear-shift kicks, wheel slip, plus the game's own rumble. |
+| **Lightbar** | Rev meter going green → yellow → red, flashing at the limiter. |
 
-В меню курки свободные (можно включить `menu_triggers`).
+Vibration is quiet when you don't want it:
+- **Off throttle:** body vibration fades out within about 0.1 s when you release R2 (`throttle_gate`).
+- **Standing still without pressing the pedals:** no vibration (`quiet_when_stopped`). Revving in place still lets you feel the limiter.
+- **Game paused:** detected from frozen telemetry. Triggers are released and vibration stops (`pause_detection`).
+- **Menus and replays:** triggers are free and there is no vibration.
 
-### Управление прямо в игре
-- **PS + D-pad ↑/↓** — сила эффектов (уровень показывают светодиоды игрока).
-- **PS + Options** — включить или выключить мод (зелёная или красная вспышка).
+### In-game controls
+- **PS + D-pad Up/Down:** effect intensity. The player LEDs show the level.
+- **PS + Options:** toggle the mod on or off. A green or red flash confirms.
 
-## Установка
+## Installation
 
-1. Скачай `xinput9_1_0.dll` и `install.ps1` из [Releases](../../releases) или собери сам (`cargo build --release`).
-2. Закрой игру и запусти:
+1. Download `dr2-dualsense-vX.Y.Z.zip` from [Releases](../../releases), or build it yourself with `cargo build --release`.
+2. Close the game and run:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+   powershell -ExecutionPolicy Bypass -File install.ps1
    ```
-   Скрипт сам найдёт игру в Steam (или передай `-GameDir`), скопирует DLL и включит телеметрию в
-   `Documents\My Games\DiRT Rally 2.0\hardwaresettings\hardware_settings_config.xml`
-   (`<udp enabled="true" extradata="3" port="20777" .../>`, рядом сохранится копия `.dr2ds-backup`).
-3. **Steam → DiRT Rally 2.0 → Свойства → Контроллер → «Отключить Steam Input».** Иначе Steam перехватывает геймпад.
-4. Закрой DS4Windows, DSX и другие такие программы.
-5. Запусти игру. В Управлении игра увидит Xbox-геймпад: это и есть DualSense через мод.
+   The script:
+   - finds the game in your Steam libraries (or pass `-GameDir`) and copies the DLL;
+   - enables telemetry in `Documents\My Games\DiRT Rally 2.0\hardwaresettings\hardware_settings_config.xml` by setting `<udp enabled="true" extradata="3" port="20777" .../>`;
+   - keeps a `.dr2ds-backup` copy of that file next to it.
+3. **Steam → DiRT Rally 2.0 → Properties → Controller → "Disable Steam Input".** Otherwise Steam grabs the controller.
+4. Close DS4Windows, DSX and similar tools.
+5. Start the game. The game sees an Xbox controller: that is your DualSense going through the mod.
 
-Удаление: `scripts\uninstall.ps1`, он вернёт и настройку телеметрии.
+To uninstall, run `uninstall.ps1`. It also restores the telemetry setting.
 
-## Настройка
+## Configuration
 
-При первом запуске рядом с игрой создаётся `dr2_dualsense.ini`. Файл перечитывается на лету, игру перезапускать не нужно.
+On first start the mod creates `dr2_dualsense.ini` in the game folder. The file is reloaded live, so there is no need to restart the game.
 
-Главное в нём — пресет и две силы:
+The main settings are a preset and two power levels:
 
 ```ini
 [general]
 preset = medium          ; soft | medium | strong
-trigger_power = 100      ; сила курков, % поверх пресета
-vibration_power = 55     ; сила вибрации, %
+trigger_power = 100      ; trigger strength, % on top of the preset
+vibration_power = 55     ; vibration strength, %
 ```
 
-| Пресет | Тормоз L2 | Газ R2 | Вибрация | Для кого |
+| Preset | Brake L2 | Throttle R2 | Vibration | For |
 |---|---|---|---|---|
-| `soft` | 1→4 | 1→2 | 35% | Долгие сессии, мягко |
-| `medium` | 1→6 | 1→3 | 55% | По умолчанию |
-| `strong` | 2→8 | 1→4 | 85% | Максимум, как в версии 0.1 |
+| `soft` | 1→4 | 1→3 | 35% | Long sessions, gentle |
+| `medium` | 1→6 | 2→4 | 55% | Default |
+| `strong` | 2→8 | 2→5 | 85% | Maximum |
 
-Остальные параметры (зоны курков, пороги блокировки и пробуксовки, частоты, доли дороги, ударов и переключений) лежат в файле закомментированными. Убери `;` перед строкой, и она перебьёт значение пресета.
+Values are resistance levels from 0 to 8, going from the start to the end of the trigger travel.
 
-Поведение по умолчанию:
-- **Пауза** распознаётся по замершей телеметрии: курки отпускаются, вибрация выключается (`pause_detection`).
-- **Меню и повторы:** курки свободны, вибрации нет (`menu_rumble = false`, `menu_triggers = false`).
-- **Стоишь на месте и не жмёшь педали:** вибрации нет (`quiet_when_stopped`). Если газуешь на месте, обороты и отсечка чувствуются.
-- **Сглаживание** (`smoothing_ms`): вибрация затухает плавно, а не обрывается.
+Every other setting is listed in the file, commented out. Remove the leading `;` to override the preset. These include:
+- trigger zones;
+- lockup and wheelspin thresholds;
+- vibration frequencies;
+- road, impact and shift mix;
+- `coast_vibration` (how much vibration remains off throttle);
+- `smoothing_ms` (how long vibration takes to fade).
 
-Если на порту 20777 уже работает SimHub или другая программа, поставь `udp_forward_port`, и мод будет пересылать ей пакеты телеметрии.
+If SimHub or another tool already listens on port 20777, set `udp_forward_port` and the mod will pass telemetry packets on to it.
 
-Журнал: `dr2_dualsense.log` в папке игры. В нём видно, когда начинается заезд, пауза и меню.
+Log: `dr2_dualsense.log` in the game folder. It shows when a stage starts, when the game is paused and when you are in menus.
 
-## Проверка без игры
+## Testing without the game
 
 ```powershell
 cargo build --release
@@ -74,19 +87,36 @@ cargo build --release
 .\target\release\dr2ds-sim.exe
 ```
 
-`dr2ds-harness` загружает DLL так же, как игра, и показывает нажатия кнопок. `dr2ds-sim`, запущенный в соседнем окне, отправляет телеметрию по сценарию: езда, гравий, пробуксовка, отсечка, переключения, блокировка колёс, прыжок, пауза. Каждый этап должно быть заметно в руках, а в паузе геймпад должен затихнуть.
+- `dr2ds-harness` loads the DLL the same way the game does and prints button and stick input.
+- `dr2ds-sim`, run in a second window, sends a scripted stage over UDP: cruise, gravel, wheelspin launch, rev limiter, upshifts, front lockup, a jump, a pause.
 
-## Тесты
+You should feel each phase, and the controller must go quiet during the pause.
+
+## Tests
 
 ```powershell
 cargo build
 cargo test
 ```
 
-Покрыто: кодирование эффектов курков, раскладка HID-отчётов USB и Bluetooth с CRC32, разбор входных отчётов, раскладка телеметрии Codemasters, логика эффектов (блокировка, пробуксовка, отсечка, удары, переключения, дорога), переводы в XInput, комбинации PS, настройки, UDP и экспорт функций самой DLL.
+Covered:
+- trigger effect encoding;
+- USB and Bluetooth HID output reports with CRC32;
+- input report parsing;
+- the Codemasters telemetry layout;
+- effect logic: lockup, wheelspin, limiter, impacts, shifts, road, pause, throttle gate, standing still;
+- presets and power scaling;
+- XInput mapping and routing;
+- PS combos;
+- config parsing;
+- the UDP receiver;
+- the DLL's exports.
 
-## Ограничения
+## Limitations
 
-- Вибрация работает через режим совместимой вибрации DualSense (так работает и по Bluetooth), а не через аудиоканал.
-- Если игру убить через диспетчер задач, курки могут остаться тугими. Тогда выключи и включи геймпад.
-- Мод не меняет файлы игры и физику: удалил DLL, и всё как было.
+- Vibration uses the DualSense's rumble-compatible mode, which also works over Bluetooth, not the audio-driven haptics channel.
+- If the game is killed from Task Manager, the triggers may stay firm. Turn the controller off and on again.
+
+## License
+
+MIT

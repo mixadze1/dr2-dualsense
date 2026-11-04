@@ -59,6 +59,8 @@ pub struct Config {
     pub menu_rumble: bool,
     pub pause_detection: bool,
     pub quiet_when_stopped: bool,
+    pub throttle_gate: bool,
+    pub coast_vibration: f32,
     pub smoothing_ms: f32,
 
     pub rpm_lightbar: bool,
@@ -86,8 +88,8 @@ impl Config {
             brake_min: 1,
             brake_max: 6,
             throttle_start_zone: 2,
-            throttle_min: 1,
-            throttle_max: 3,
+            throttle_min: 2,
+            throttle_max: 4,
             lockup_vibration: true,
             lockup_threshold: 0.25,
             lockup_amplitude: 5,
@@ -112,6 +114,8 @@ impl Config {
             menu_rumble: false,
             pause_detection: true,
             quiet_when_stopped: true,
+            throttle_gate: true,
+            coast_vibration: 0.0,
             smoothing_ms: 60.0,
             rpm_lightbar: true,
             color: [0, 40, 255],
@@ -122,7 +126,8 @@ impl Config {
                 preset,
                 vibration_power: 0.35,
                 brake_max: 4,
-                throttle_max: 2,
+                throttle_min: 1,
+                throttle_max: 3,
                 lockup_amplitude: 3,
                 wheelspin_amplitude: 3,
                 rev_limiter_amplitude: 4,
@@ -140,7 +145,7 @@ impl Config {
                 vibration_power: 0.85,
                 brake_min: 2,
                 brake_max: 8,
-                throttle_max: 4,
+                throttle_max: 5,
                 lockup_amplitude: 7,
                 lockup_frequency: 35,
                 wheelspin_amplitude: 8,
@@ -185,8 +190,8 @@ log = true
 ;brake_min = 1
 ;brake_max = 6
 ;throttle_start_zone = 2
-;throttle_min = 1
-;throttle_max = 3
+;throttle_min = 2
+;throttle_max = 4
 ;lockup_vibration = true
 ;lockup_threshold = 0.25
 ;lockup_amplitude = 5
@@ -214,6 +219,8 @@ log = true
 ;menu_rumble = false
 ;pause_detection = true
 ;quiet_when_stopped = true
+;throttle_gate = true
+;coast_vibration = 0.0
 ;smoothing_ms = 60
 
 [lightbar]
@@ -353,6 +360,8 @@ impl Config {
             "haptics.menu_rumble" => set!(self.menu_rumble, bv()),
             "haptics.pause_detection" => set!(self.pause_detection, bv()),
             "haptics.quiet_when_stopped" => set!(self.quiet_when_stopped, bv()),
+            "haptics.throttle_gate" => set!(self.throttle_gate, bv()),
+            "haptics.coast_vibration" => set!(self.coast_vibration, f32v()),
             "haptics.smoothing_ms" => set!(self.smoothing_ms, f32v()),
             "lightbar.rpm_lightbar" => set!(self.rpm_lightbar, bv()),
             "lightbar.color" => set!(self.color, parse_color(v)),
@@ -389,6 +398,7 @@ impl Config {
             &mut self.shift,
             &mut self.slip,
             &mut self.game_rumble,
+            &mut self.coast_vibration,
         ] {
             *v = v.clamp(0.0, 1.0);
         }
